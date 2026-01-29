@@ -19,10 +19,6 @@ class Transaction extends AbstractDb
      * @var string
      */
     protected $_idFieldName = 'entity_id';
-    /**
-     * @var DateTime
-     */
-    protected $_date;
 
     /**
      * Construct.
@@ -33,12 +29,9 @@ class Transaction extends AbstractDb
      */
     public function __construct(
         Context $context,
-        DateTime $date,
         $resourcePrefix = null
     ) {
         parent::__construct($context, $resourcePrefix);
-
-        $this->_date = $date;
     }
 
     /**

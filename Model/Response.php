@@ -96,7 +96,11 @@ class Response extends DataObject
         return ($this->getReturn()->successful === true || $this->getReturn()->successful === false)
             && in_array(
                 $this->getTransactionState(),
-                [AbstractPayU::TRANS_STATE_FAILED, AbstractPayU::TRANS_STATE_EXPIRED, AbstractPayU::TRANS_STATE_TIMEOUT]
+                [
+                    AbstractPayU::TRANS_STATE_FAILED,
+                    AbstractPayU::TRANS_STATE_EXPIRED,
+                    AbstractPayU::TRANS_STATE_TIMEOUT
+                ]
             );
     }
 
@@ -213,14 +217,9 @@ class Response extends DataObject
     public function getTotalCaptured()
     {
         $total = 0;
-
-        if ($this->isPaymentNew()) {
-            return $total;
-        }
-
         $paymentMethods = $this->getPaymentMethod();
 
-        if (!$paymentMethods) {
+        if (!$paymentMethods || $this->isPaymentNew()) {
             return $total;
         }
 
@@ -233,15 +232,14 @@ class Response extends DataObject
         if (is_a($paymentMethods, stdClass::class, true) &&
             property_exists($paymentMethods, 'amountInCents')
         ) {
-            return ($paymentMethods->amountInCents / 100);
+            return $paymentMethods->amountInCents / 100;
         }
 
         foreach ($paymentMethods as $paymentMethod) {
-            $total += $paymentMethod->amountInCents;
+            $total += property_exists($paymentMethod, 'amountInCents') ? $paymentMethod->amountInCents : 0;
         }
 
-        // Prevent division by zero
-        return (max($total, 1) / 100);
+        return $total / 100;
     }
 
     public function getDisplayMessage()
@@ -357,7 +355,7 @@ class Response extends DataObject
         $payment = $order->getPayment();
         $method = $payment->getMethodInstance();
 
-        return $method->getCode() === Payflex::CODE && $this->isPaymentProcessing();
+        return $method->getCode() === Payflex::CODE && ($this->isPaymentProcessing() || $this->isPaymentFailed());
     }
 
     /**
@@ -371,6 +369,6 @@ class Response extends DataObject
         $payment = $order->getPayment();
         $method = $payment->getMethodInstance();
 
-        return $method->getCode() === MasterPass::CODE && $this->isPaymentProcessing();
+        return $method->getCode() === MasterPass::CODE && ($this->isPaymentProcessing() || $this->isPaymentFailed());
     }
 }

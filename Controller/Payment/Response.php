@@ -51,7 +51,11 @@ class Response extends AbstractAction
         try {
             $payUReference = $this->getPayUReference();
 
-            $canProceed = $this->responseProcessor->canProceed($orderId, $processId, $processClass);
+            $canProceed = $this->responseProcessor->canProceed(
+                $orderId,
+                $processId,
+                $processClass
+            );
 
             if (!$canProceed) {
                 $page = $this->responseProcessor->redirectTo($orderId, $payUReference);

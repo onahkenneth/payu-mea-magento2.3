@@ -60,6 +60,7 @@ class Response
         $this->payUTransactionFactory = $payUTransactionFactory;
         $this->payUTransactionResourceFactory = $payUTransactionResourceFactory;
     }
+
     /**
      * @param string $incrementId
      * @param string $processId

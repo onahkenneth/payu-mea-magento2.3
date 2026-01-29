@@ -269,7 +269,7 @@ class Data extends AbstractHelper
             "payment/{$methodCode}/payment_url/notification_url",
             ScopeInterface::SCOPE_STORE);
 
-        return $baseUrl . $notificationUrl;
+        return $notificationUrl;
     }
 
     /**

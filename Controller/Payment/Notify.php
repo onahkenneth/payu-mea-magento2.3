@@ -55,12 +55,11 @@ class Notify extends AbstractAction implements CsrfAwareActionInterface
             return $resultJson;
         }
 
+        $this->respond('200', 'OK');
         $incrementId = $ipnData['MerchantReference'];
         $canProceed = $this->responseProcessor->canProceed($incrementId, $processId, $processClass);
 
         if (!$canProceed) {
-            $this->respond('200', 'OK');
-
             return $resultJson;
         }
 
@@ -75,12 +74,10 @@ class Notify extends AbstractAction implements CsrfAwareActionInterface
         ) : false;
 
         if (!$order || ((int)$order->getId() <= 0)) {
-            $this->respond('500', 'Failed to load order.');
-
             return $resultJson;
         }
 
-        $this->respond('200', 'OK');
+
         $this->response->processNotify($order, $ipnData, $processId, $processClass);
         $this->responseProcessor->updateTransactionLog($incrementId, $processId);
 

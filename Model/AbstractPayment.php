@@ -565,9 +565,7 @@ abstract class AbstractPayment extends AbstractPayU
      */
     public function processNotification(Order $order, array $data, string $processId, string $processClass)
     {
-        if ($order->getState() == strtolower(AbstractPayU::TRANS_STATE_PROCESSING) ||
-            $order->getStatus() == strtolower(AbstractPayU::TRANS_STATE_PROCESSING)
-        ) {
+        if (!$order->canInvoice()) {
             $this->debugData(['info' => "IPN ($processId): Order already processed.", 'response' => $data]);
 
             return;
@@ -577,7 +575,7 @@ abstract class AbstractPayment extends AbstractPayU
         $response = $this->_easyPlusApi->doGetTransaction($payUReference, $this);
         $resultCode = $response->getResultCode();
 
-        $transactionNotes = "<strong>-----PAYU NOTIFICATION RECEIVED---</strong><br />";
+        $transactionNotes = "<strong>-----PAYU NOTIFICATION RECEIVED-----</strong><br />";
         //Checking the response from the SOAP call to see if IPN is valid
         if (isset($resultCode) && (!in_array($resultCode, ['POO5', 'EFTPRO_003', '999', '305']))) {
             if (isset($data['TransactionState'])
@@ -587,31 +585,13 @@ abstract class AbstractPayment extends AbstractPayU
                         [
                             'PROCESSING',
                             'SUCCESSFUL',
-                            'AWAITING_PAYMENT',
-                            'FAILED',
-                            'TIMEOUT',
-                            'EXPIRED'
+                            'AWAITING_PAYMENT'
                         ]
                     )
                 )
             ) {
-                $amountPaid = 0.0;
-                $paymentMethods = [];
+                $amountPaid = $response->getTotalCaptured();
                 $amountDue = $response->getTotalDue() / 100;
-
-                if ($response->hasPaymentMethod()) {
-                    $paymentMethods = $data['PaymentMethodsUsed'];
-
-                    if (!is_array($paymentMethods)) {
-                        $paymentMethods = [$paymentMethods];
-                    }
-
-                    foreach ($paymentMethods as $paymentMethod) {
-                        if (array_key_exists('AmountInCents', $paymentMethod)) {
-                            $amountPaid += ($paymentMethod['AmountInCents'] / 100);
-                        }
-                    }
-                }
 
                 $transactionNotes .= "Order Amount: " . $amountDue . "<br />";
                 $transactionNotes .= "Amount Paid: " . $amountPaid . "<br />";
@@ -619,16 +599,16 @@ abstract class AbstractPayment extends AbstractPayU
                 $transactionNotes .= "PayU Reference: " . $payUReference . "<br />";
                 $transactionNotes .= "PayU Payment Status: " . $response->getTransactionState() . "<br /><br />";
 
-                if (!empty($paymentMethods)) {
-                    if (is_array($paymentMethods)) {
-                        $transactionNotes .= "<strong>Payment Method Details:</strong>";
-                        foreach ($paymentMethods as $type => $paymentMethod) {
-                            $transactionNotes .= "<br />===" . $type . "===";
-                            foreach ($paymentMethod as $key => $value) {
-                                $transactionNotes .= "<br />&nbsp;&nbsp;=> " . $key . ": " . $value;
-                            }
-                            $transactionNotes .= '<br />';
+                $paymentMethods = $data['PaymentMethodsUsed'];
+
+                if (!empty($paymentMethods) && is_array($paymentMethods)) {
+                    $transactionNotes .= "<strong>Payment Method Details:</strong>";
+                    foreach ($paymentMethods as $type => $paymentMethod) {
+                        $transactionNotes .= "<br />===" . $type . "===";
+                        foreach ($paymentMethod as $key => $value) {
+                            $transactionNotes .= "<br />&nbsp;&nbsp;=> " . $key . ": " . $value;
                         }
+                        $transactionNotes .= '<br />';
                     }
                 }
 
@@ -643,43 +623,30 @@ abstract class AbstractPayment extends AbstractPayU
                     case 'PROCESSING':
                         $order->addCommentToStatusHistory($transactionNotes);
                         break;
-                    case 'FAILED':
-                    case 'TIMEOUT':
-                    case 'EXPIRED':
-                        $order->addCommentToStatusHistory($transactionNotes);
-                        $order->cancel();
-                        break;
                     default:
                         $order->addCommentToStatusHistory($transactionNotes, true);
                     break;
                 }
 
+                $this->debugData(['info' => "Processing of IPN ($processId) complete."]);
                 $this->_orderRepository->save($order);
-                $this->debugData(['info' => "IPN ($processId): Processing complete."]);
+                return;
             } else {
-                $transactionNotes = '<strong>Payment unsuccessful: </strong><br />';
-                $transactionNotes .= "PayU Reference: " . $response->getTranxId() . "<br />";
-                $transactionNotes .= "Point Of Failure: " . $response->getPointOfFailure() . "<br />";
-                $transactionNotes .= "Result Code: " . $response->getResultCode();
-                $transactionNotes .= "Result Message: " . $response->getResultMessage();
-
-                $order->addCommentToStatusHistory($transactionNotes);
-                $order->cancel();
-                $this->_orderRepository->save($order);
-                $this->debugData(['info' => "IPN ($processId): Payment transaction failed. Payment status unknown"]);
+                $transactionNotes = "<strong>PAYMENT {$data['TransactionState']}:</strong><br />";
             }
         } else {
-            $transactionNotes = '<strong>Payment unsuccessful: </strong><br />';
-            $transactionNotes .= "PayU Reference: " . $response->getTranxId() . "<br />";
+            $transactionNotes = '<strong>PAYMENT UNSUCCESSFULL: </strong><br />';
             $transactionNotes .= "Point Of Failure: " . $response->getPointOfFailure() . "<br />";
-            $transactionNotes .= "Result Code: " . $response->getResultCode();
-            $transactionNotes .= "Result Message: " . $response->getResultMessage();
-
-            $order->addCommentToStatusHistory($transactionNotes);
-            $order->cancel();
-            $this->_orderRepository->save($order);
-            $this->debugData(['info' => "IPN ($processId): PayU payment transaction failed"]);
         }
+
+        $transactionNotes .= "PayU Reference: " . $response->getTranxId() . "<br />";
+        $transactionNotes .= "Result Code: " . $response->getResultCode();
+        $transactionNotes .= "Result Message: " . $response->getResultMessage();
+
+        $order->addCommentToStatusHistory($transactionNotes);
+        $order->cancel();
+        $this->_orderRepository->save($order);
+        $this->debugData(['info' => "IPN ($processId): payment transaction failed."]);
     }
 
     /**

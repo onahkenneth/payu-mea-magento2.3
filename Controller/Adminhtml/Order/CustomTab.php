@@ -90,6 +90,4 @@ class CustomTab extends Order
 
         return $resultRaw;
     }
-
-
 }

@@ -1089,10 +1089,10 @@ abstract class AbstractPayment extends AbstractPayU
 
     /**
      * Check whether payment method can be used
-     * @param CartInterface|Quote|null $quote
+     * @param CartInterface|null $quote
      * @return bool
      */
-    public function isAvailable(CartInterface $quote = null)
+    public function isAvailable(CartInterface|null $quote = null)
     {
         return parent::isAvailable($quote) && $this->isMethodAvailable();
     }

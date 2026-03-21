@@ -1,9 +1,7 @@
 <?php
 /**
- * Created by PhpStorm.
- * User: kenny
- * Date: 9/13/17
- * Time: 10:38 AM
+ * Copyright © PayU Financial Services. All rights reserved.
+ * See LICENSE.txt for license details.
  */
 
 namespace PayU\EasyPlus\Model;

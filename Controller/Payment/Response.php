@@ -1,12 +1,7 @@
 <?php
 /**
- * PayU_EasyPlus payment response validation controller
- *
- * @category    PayU
- * @package     PayU_EasyPlus
- * @author      Kenneth Onah
- * @copyright   PayU South Africa (http://payu.co.za)
- * @license     http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ * Copyright © PayU Financial Services. All rights reserved.
+ * See LICENSE.txt for license details.
  */
 
 namespace PayU\EasyPlus\Controller\Payment;
@@ -51,10 +46,17 @@ class Response extends AbstractAction
         try {
             $payUReference = $this->getPayUReference();
 
-            $canProceed = $this->responseProcessor->canProceed($orderId, $processId, $processClass);
+            $canProceed = $this->responseProcessor->canProceed(
+                $orderId,
+                $processId,
+                $processClass
+            );
 
             if (!$canProceed) {
-                $page = $this->responseProcessor->redirectTo($orderId, $payUReference);
+                $page = $this->responseProcessor->redirectTo(
+                    $orderId,
+                    $payUReference
+                );
 
                 switch ($page) {
                     case \PayU\EasyPlus\Model\Processor\Response::SUCCESS_PAGE:
@@ -102,9 +104,9 @@ class Response extends AbstractAction
                 $alreadyProcessed = true;
             }
 
-            $bypassPayuRedirect = (bool)$this->getRedirectConfigData('bypass');
+            $bypassPayURedirect = (bool)$this->getRedirectConfigData('bypass');
 
-            if ($bypassPayuRedirect) {
+            if ($bypassPayURedirect) {
                 $this->logger->debug([
                     'info' => "($processId) ($orderId) $processClass Redirect Disabled, checking possible existing IPN status"
                 ]);
@@ -162,7 +164,10 @@ class Response extends AbstractAction
 
                 $message = $this->response->getDisplayMessage();
 
-                if ($this->response->isCancelPayflex($order) || $this->response->isMasterpassTimeout($order)) {
+                if (
+                    $this->response->isCancelPayflex($order) ||
+                    $this->response->isMasterpassTimeout($order)
+                ) {
                     $this->messageManager->addErrorMessage($message);
 
                     return $this->returnToCart();
@@ -182,7 +187,10 @@ class Response extends AbstractAction
             $this->logger->debug([
                 'error' => "($processId) ($orderId) $processClass" . $exception->getMessage()
             ]);
-            $this->messageManager->addExceptionMessage($exception, __($exception->getMessage()));
+            $this->messageManager->addExceptionMessage(
+                $exception,
+                __($exception->getMessage())
+            );
             $this->clearSessionData();
         }
 

@@ -15,6 +15,7 @@ use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\DataObject;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Payment\Model\InfoInterface;
+use Magento\Sales\Model\Order;
 use Magento\Store\Model\ScopeInterface;
 use PayU\EasyPlus\Model\AbstractPayment;
 use PayU\EasyPlus\Model\Response;
@@ -308,18 +309,6 @@ class Api extends DataObject
         }
     }
 
-    private function getSoapHeader()
-    {
-        $header  = '<wsse:Security SOAP-ENV:mustUnderstand="1" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">';
-        $header .= '<wsse:UsernameToken wsu:Id="UsernameToken-9" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">';
-        $header .= '<wsse:Username>' . $this->getUsername() . '</wsse:Username>';
-        $header .= '<wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">' . $this->getPassword() . '</wsse:Password>';
-        $header .= '</wsse:UsernameToken>';
-        $header .= '</wsse:Security>';
-
-        return $header;
-    }
-
     public function checkTransaction($reference)
     {
         $soapClient = $this->getSoapSingleton();
@@ -377,22 +366,68 @@ class Api extends DataObject
         return json_decode(json_encode($response));
     }
 
-    private function getSoapSingleton()
-    {
-        if (self::$_soapClient == null) {
-            $this->setGatewayEndpoint();
-            $header = $this->getSoapHeader();
-            $soapWsdlUrl = $this->getSoapEndpoint() . '?wsdl';
-            $this->wsdlUrl = $soapWsdlUrl;
+    /**
+     * @param AbstractPayment $redirectPayment
+     * @param string $txnId
+     * @param string $orderId
+     * @param float $amount
+     * @param string $currencyCode
+     * @param ?string $transactionType
+     *
+     * @return Response
+     * @throws LocalizedException
+     */
+    public function doTransaction(
+        AbstractPayment $redirectPayment,
+        string $txnId,
+        string $orderId,
+        float $amount,
+        string $currencyCode,
+        ?string $transactionType = null
+    ): Response {
 
-            $headerBody = new \SoapVar($header, XSD_ANYXML, null, null, null);
-            $soapHeader = new \SOAPHeader(self::$ns, 'Security', $headerBody, true);
-
-            self::$_soapClient = new SoapClient($soapWsdlUrl, ['trace' => 1, 'exception' => 0]);
-            self::$_soapClient->__setSoapHeaders($soapHeader);
+        if (!$transactionType) {
+            throw new LocalizedException(__('PayU transaction type is empty'));
         }
 
-        return self::$_soapClient;
+        $data['Api'] = $this->getApiVersion();
+        $data['Safekey'] = $redirectPayment->getValue('safe_key');
+        $data['TransactionType'] = $transactionType;
+        $data['AdditionalInformation']['payUReference'] = $txnId;
+        $data['AdditionalInformation']['merchantReference'] = $orderId;
+        $data['Basket']['amountInCents'] = $amount;
+        $data['Basket']['currencyCode'] = $currencyCode;
+
+        $result = $this->doDoTransaction($redirectPayment, $data);
+        $this->response = $result;
+
+        $redirectPayment->debugData([
+            'info' => 'DoTransaction',
+            'request' => $data,
+            'response' => $result->toArray()
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * @param AbstractPayment $redirectPayment
+     * @param array $payload
+     * @return Response
+     * @throws LocalizedException
+     */
+    private function doDoTransaction(AbstractPayment $redirectPayment, array $payload)
+    {
+        $this->setMethodCode($redirectPayment->getCode());
+        $soapClient = $this->getSoapSingleton();
+
+        $result = $soapClient->doTransaction($payload);
+        $result = json_decode(json_encode($result));
+
+        $response = $this->responseFactory->create();
+        $response->setData('return', $result->return);
+
+        return $response;
     }
 
     /**
@@ -412,7 +447,7 @@ class Api extends DataObject
     }
 
     /**
-     * Transfer transaction/payment information from API instance to order payment
+     * Transfer transaction/payment information from API instance to payment object
      *
      * @param DataObject $from
      * @param InfoInterface $to
@@ -444,6 +479,47 @@ class Api extends DataObject
             $to->setIsTransactionDenied(true);
         }
 
+        $to->setTransactionAdditionalInfo(
+            Order\Payment\Transaction::RAW_DETAILS,
+            $from->getPaymentData()
+        );
+
         return $this;
+    }
+
+    /**
+     * @return string
+     */
+    private function getSoapHeader()
+    {
+        $header  = '<wsse:Security SOAP-ENV:mustUnderstand="1" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">';
+        $header .= '<wsse:UsernameToken wsu:Id="UsernameToken-9" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">';
+        $header .= '<wsse:Username>' . $this->getUsername() . '</wsse:Username>';
+        $header .= '<wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText">' . $this->getPassword() . '</wsse:Password>';
+        $header .= '</wsse:UsernameToken>';
+        $header .= '</wsse:Security>';
+
+        return $header;
+    }
+
+    /**
+     * @return SoapClient|null
+     */
+    private function getSoapSingleton()
+    {
+        if (self::$_soapClient == null) {
+            $this->setGatewayEndpoint();
+            $header = $this->getSoapHeader();
+            $soapWsdlUrl = $this->getSoapEndpoint() . '?wsdl';
+            $this->wsdlUrl = $soapWsdlUrl;
+
+            $headerBody = new \SoapVar($header, XSD_ANYXML, null, null, null);
+            $soapHeader = new \SOAPHeader(self::$ns, 'Security', $headerBody, true);
+
+            self::$_soapClient = new SoapClient($soapWsdlUrl, ['trace' => 1, 'exception' => 0]);
+            self::$_soapClient->__setSoapHeaders($soapHeader);
+        }
+
+        return self::$_soapClient;
     }
 }

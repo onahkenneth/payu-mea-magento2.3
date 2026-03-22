@@ -99,10 +99,11 @@ class Response
     /**
      * @param string $incrementId
      * @param string $processId
+     * @param ?string $status
      * @return void
      * @throws AlreadyExistsException|Exception
      */
-    public function updateTransactionLog(string $incrementId, string $processId)
+    public function updateTransactionLog(string $incrementId, string $processId, ?string $status = 'complete')
     {
         $transaction = $this->payUTransactionFactory->create();
         $resourceModel = $this->payUTransactionResourceFactory->create();
@@ -117,7 +118,7 @@ class Response
         }
 
         try {
-            $transaction->setStatus('complete');
+            $transaction->setStatus($status);
             $transaction->setLock(false);
             $resourceModel->save($transaction);
         } catch (AlreadyExistsException $exception) {

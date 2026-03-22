@@ -96,8 +96,18 @@ class Response extends DataObject
         return ($this->getReturn()->successful === true || $this->getReturn()->successful === false)
             && in_array(
                 $this->getTransactionState(),
-                [AbstractPayU::TRANS_STATE_FAILED, AbstractPayU::TRANS_STATE_EXPIRED, AbstractPayU::TRANS_STATE_TIMEOUT]
+                [
+                    AbstractPayU::TRANS_STATE_FAILED,
+                    AbstractPayU::TRANS_STATE_EXPIRED,
+                    AbstractPayU::TRANS_STATE_TIMEOUT
+                ]
             );
+    }
+
+    public function isRefundSuccessful(): bool
+    {
+        return $this->getReturn()->successful
+            && $this->getResultCode() === "00";
     }
 
     public function getTranxId()
@@ -105,7 +115,7 @@ class Response extends DataObject
         return $this->getReturn()->payUReference;
     }
 
-    public function getInvoiceNum()
+    public function getOrderId()
     {
         return $this->getReturn()->merchantReference;
     }
@@ -218,7 +228,7 @@ class Response extends DataObject
     {
         $total = 0;
 
-        if ($this->isPaymentNew()) {
+        if ($this->isPaymentNew() || $this->isPaymentFailed()) {
             return $total;
         }
 
@@ -287,7 +297,7 @@ class Response extends DataObject
 
     public function getTotalDue()
     {
-        return isset($this->getReturn()->basket) ? $this->getReturn()->basket->amountInCents : 0;
+        return isset($this->getReturn()->basket) ? $this->getReturn()->basket->amountInCents / 100: 0;
     }
 
     /**
@@ -376,5 +386,37 @@ class Response extends DataObject
         $method = $payment->getMethodInstance();
 
         return $method->getCode() === MasterPass::CODE && $this->isPaymentProcessing();
+    }
+
+    /**
+     * @return array
+     */
+    public function getPaymentData(): array
+    {
+        return $this->toFlatArray(
+            json_decode(
+                json_encode(
+                    $this->toArray()['return']
+                ),
+                true
+            )
+        );
+    }
+
+    private function toFlatArray(array $data, string $prefix = ''): array
+    {
+        $result = [];
+
+        foreach ($data as $key => $value) {
+            $flatKey = $prefix !== '' ? $prefix . '_' . $key : $key;
+
+            if (is_array($value)) {
+                $result = array_merge($result, self::toFlatArray($value, $flatKey));
+            } else {
+                $result[$flatKey] = $value;
+            }
+        }
+
+        return $result;
     }
 }

@@ -20,7 +20,8 @@ class Status implements OptionSourceInterface
         $options = [
             'pending' => __('Pending'),
             'processing' => __('In Progress'),
-            'complete' => __('Completed')
+            'complete' => __('Completed'),
+            'error' => __('Error'),
         ];
         return $options;
     }

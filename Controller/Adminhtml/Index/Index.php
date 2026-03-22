@@ -15,9 +15,12 @@ use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\StoreManagerInterface;
 use PayU\EasyPlus\Model\Api\Api;
 use PayU\EasyPlus\Model\Api\Factory;
+use PayU\EasyPlus\Model\Trait\GetPayUReferenceTrait;
 
 class Index extends Action
 {
+    use GetPayUReferenceTrait;
+
     /**
      * @var string?
      */
@@ -83,8 +86,7 @@ class Index extends Action
         $payment = $order->getPayment();
 
         $this->code = $payment->getData('method');
-        $additionalInfo = $payment->getData('additional_information');
-        $payUReference = $additionalInfo["payUReference"];
+        $payUReference = $this->getPayUOrderReference($payment);
 
         $this->initializeApi($order->getStoreId());
         $result = $this->easyPlusApi->checkTransaction($payUReference);

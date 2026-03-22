@@ -1,12 +1,7 @@
 <?php
 /**
- * PayU_EasyPlus cancelled checkout controller
- *
- * @category    PayU
- * @package     PayU_EasyPlus
- * @author      Kenneth Onah
- * @copyright   PayU South Africa (http://payu.co.za)
- * @license     http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ * Copyright © PayU Financial Services. All rights reserved.
+ * See LICENSE.txt for license details.
  */
 
 namespace PayU\EasyPlus\Controller\Payment;
@@ -81,7 +76,18 @@ class Notify extends AbstractAction implements CsrfAwareActionInterface
         }
 
         $this->respond('200', 'OK');
-        $this->response->processNotify($order, $ipnData, $processId, $processClass);
+
+        try {
+            $this->response->processNotify($order, $ipnData, $processId, $processClass);
+        } catch(LocalizedException $ex) {
+            $this->logger->debug([
+                'error' => "($processId) ($incrementId) $processClass ERROR: {$ex->getMessage()}"
+            ]);
+            $this->responseProcessor->updateTransactionLog($incrementId, $processId, 'error');
+
+            return $resultJson;
+        }
+
         $this->responseProcessor->updateTransactionLog($incrementId, $processId);
 
         return $resultJson;

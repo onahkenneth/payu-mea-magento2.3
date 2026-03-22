@@ -1,8 +1,9 @@
 <?php
 /**
- * Copyright © 2015 Magento. All rights reserved.
- * See COPYING.txt for license details.
+ * Copyright © PayU Financial Services. All rights reserved.
+ * See LICENSE.txt for license details.
  */
+
 namespace PayU\EasyPlus\Controller;
 
 use Exception;
@@ -217,11 +218,11 @@ abstract class AbstractAction extends AppAction implements RedirectLoginInterfac
 
             if ($payUReference && $reference !== $payUReference) {
                 $this->logger->debug([
-                    'info' => "PayU reference from request parameter: {$reference}, PayU reference in Magento session: "
+                    'error' => "PayU reference from request parameter: {$reference}, PayU reference in Magento session: "
                         . $payUReference
                 ]);
                 throw new LocalizedException(
-                    __('A wrong PayU Checkout Reference was specified.')
+                    __('Invalid PayU Checkout Reference.')
                 );
             }
         } else {
@@ -404,12 +405,12 @@ abstract class AbstractAction extends AppAction implements RedirectLoginInterfac
 
     /**
      * @param string $httpCode
-     * @param null $text
+     * @param ?string $text
      */
-    protected function respond(string $httpCode = '200', $text = null)
+    protected function respond(string $httpCode = '200', ?string $text = '')
     {
         if ($httpCode === '200' && is_callable('fastcgi_finish_request')) {
-            if ($text !== null) {
+            if ($text) {
                 echo $text;
             }
 
@@ -422,7 +423,7 @@ abstract class AbstractAction extends AppAction implements RedirectLoginInterfac
         ignore_user_abort(true);
         ob_start();
 
-        if ($text !== null) {
+        if ($text) {
             echo $text;
         }
 
